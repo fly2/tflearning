@@ -35,7 +35,7 @@ print(accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels}))
 
 #mnist进阶
 #创建初始化权重函数
-#truncated_normal截断正态分布
+#truncated_normal截断正态分布，stddev表示标准差
 def weight_variable(shape):
   initial = tf.truncated_normal(shape, stddev=0.1)
   return tf.Variable(initial)
