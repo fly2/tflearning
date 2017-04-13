@@ -7,7 +7,7 @@ Created on Tue Apr 11 22:35:30 2017
 import tensorflow as tf
 
 slim = tf.contrib.slim
-
+#tf.app.flags功能接近Python-gflags
 flags = tf.app.flags
 flags.DEFINE_string('vgg_checkpoint', None, 'Path to VGG16 checkpoint file.')
 FLAGS = flags.FLAGS
