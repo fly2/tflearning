@@ -32,3 +32,55 @@ shape(expand_dims(t2, 0)) ==> [1, 2, 3, 5]
 shape(expand_dims(t2, 2)) ==> [2, 3, 1, 5]
 shape(expand_dims(t2, 3)) ==> [2, 3, 5, 1]
 ```
+
+**tf.reshape**`(tensor,    shape,    name=None)`
+
+改变张量的形状，tensor为输入张量，shape为想要的形状
+
+```python
+# tensor 't' is [1, 2, 3, 4, 5, 6, 7, 8, 9]
+# tensor 't' has shape [9]
+reshape(t, [3, 3]) ==> [[1, 2, 3],
+                        [4, 5, 6],
+                        [7, 8, 9]]
+
+# tensor 't' is [[[1, 1], [2, 2]],
+#                [[3, 3], [4, 4]]]
+# tensor 't' has shape [2, 2, 2]
+reshape(t, [2, 4]) ==> [[1, 1, 2, 2],
+                        [3, 3, 4, 4]]
+
+# tensor 't' is [[[1, 1, 1],
+#                 [2, 2, 2]],
+#                [[3, 3, 3],
+#                 [4, 4, 4]],
+#                [[5, 5, 5],
+#                 [6, 6, 6]]]
+# tensor 't' has shape [3, 2, 3]
+# pass '[-1]' to flatten 't'
+reshape(t, [-1]) ==> [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6]
+
+# -1 can also be used to infer the shape
+
+# -1 is inferred to be 9:
+reshape(t, [2, -1]) ==> [[1, 1, 1, 2, 2, 2, 3, 3, 3],
+                         [4, 4, 4, 5, 5, 5, 6, 6, 6]]
+# -1 is inferred to be 2:
+reshape(t, [-1, 9]) ==> [[1, 1, 1, 2, 2, 2, 3, 3, 3],
+                         [4, 4, 4, 5, 5, 5, 6, 6, 6]]
+# -1 is inferred to be 3:
+reshape(t, [ 2, -1, 3]) ==> [[[1, 1, 1],
+                              [2, 2, 2],
+                              [3, 3, 3]],
+                             [[4, 4, 4],
+                              [5, 5, 5],
+                              [6, 6, 6]]]
+
+# tensor 't' is [7]
+# shape `[]` reshapes to a scalar
+reshape(t, []) ==> 7
+```
+
+**tf.nn.dropout**`(x, keep_prob, noise_shape=None, seed=None, name=None)`
+
+在更新权重时使部分神经元不工作但保留权重。x为一个张量，keep_prob为保持的概率，即工作的概率。

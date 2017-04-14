@@ -36,6 +36,7 @@ print(accuracy.eval(feed_dict={x: mnist.test.images, y_: mnist.test.labels}))
 #mnist进阶
 #创建初始化权重函数
 #truncated_normal截断正态分布，stddev表示标准差
+#shape前两个维度是patch的大小，接着是输入的通道数目，最后是输出的通道数目。
 def weight_variable(shape):
   initial = tf.truncated_normal(shape, stddev=0.1)
   return tf.Variable(initial)
@@ -51,7 +52,7 @@ def conv2d(x, W):
 def max_pool_2x2(x):
   return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
-#shape前两个维度是patch的大小，接着是输入的通道数目，最后是输出的通道数目。
+  
 
 #第一层的权值向量和偏置项
 #感觉为输入xa+b,a为32维向量，输出变为32维。即32个神经元
