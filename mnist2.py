@@ -6,7 +6,7 @@ Created on Fri Feb 24 09:44:14 2017
 """
 #导入数据
 import tensorflow.examples.tutorials.mnist.input_data as input_data
-mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+mnist = input_data.read_data_sets('D:/data/mnist', one_hot=True)
 #使用InteractiveSession.入门中使用Session,需要在启动Session前构建好整个计算图。故在最后才定义Session
 import tensorflow as tf
 sess=tf.InteractiveSession();
@@ -88,7 +88,7 @@ cross_entropy = -tf.reduce_sum(y_*tf.log(y_conv))
 train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-sess.run(tf.initialize_all_variables())
+sess.run(tf.global_variables_initializer())
 for i in range(20000):
   batch = mnist.train.next_batch(50)
   if i%100 == 0:
