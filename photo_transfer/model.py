@@ -1,84 +1,161 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 11 22:35:30 2017
+# Copyright 2016 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Style transfer network code."""
 
-@author: hasee
-"""
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+# internal imports
 import tensorflow as tf
 
+import ops
+
 slim = tf.contrib.slim
-#tf.app.flags功能接近Python-gflags
-flags = tf.app.flags
-flags.DEFINE_string('vgg_checkpoint', None, 'Path to VGG16 checkpoint file.')
-FLAGS = flags.FLAGS
 
 
-def checkpoint_file():
-  """Get the path to the VGG16 checkpoint file from flags."""
-  return os.path.expanduser(FLAGS.vgg_checkpoint)
+def transform(input_, normalizer_fn=ops.conditional_instance_norm,
+              normalizer_params=None, reuse=False):
+  """Maps content images to stylized images.
 
-
-def vgg_16(inputs, reuse=False, pooling='avg', final_endpoint='fc8'):
-  """VGG-16 implementation intended for test-time use.
-  It takes inputs with values in [0, 1] and preprocesses them (scaling,
-  mean-centering) before feeding them to the VGG-16 network.
   Args:
-    inputs: A 4-D tensor of shape [batch_size, image_size, image_size, 3]
-        and dtype float32, with values in [0, 1].
+    input_: Tensor. Batch of input images.
+    normalizer_fn: normalization layer function.  Defaults to
+        ops.conditional_instance_norm.
+    normalizer_params: dict of parameters to pass to the conditional instance
+        normalization op.
     reuse: bool. Whether to reuse model parameters. Defaults to False.
-    pooling: str in {'avg', 'max'}, which pooling operation to use. Defaults
-        to 'avg'.
-    final_endpoint: str, specifies the endpoint to construct the network up to.
-        Defaults to 'fc8'.
+
   Returns:
-    A dict mapping end-point names to their corresponding Tensor.
-  Raises:
-    ValueError: the final_endpoint argument is not recognized.
+    Tensor. The output of the transformer network.
   """
-  inputs *= 255.0
-  inputs -= tf.constant([123.68, 116.779, 103.939], dtype=tf.float32)
+  if normalizer_params is None:
+    normalizer_params = {'center': True, 'scale': True}
+  with tf.variable_scope('transformer', reuse=reuse):
+    with slim.arg_scope(
+        [slim.conv2d],
+        activation_fn=tf.nn.relu,
+        normalizer_fn=normalizer_fn,
+        normalizer_params=normalizer_params,
+        weights_initializer=tf.random_normal_initializer(0.0, 0.01),
+        biases_initializer=tf.constant_initializer(0.0)):
+      with tf.variable_scope('contract'):
+        h = _conv2d(input_, 9, 1, 32, 'conv1')
+        h = _conv2d(h, 3, 2, 64, 'conv2')
+        h = _conv2d(h, 3, 2, 128, 'conv3')
+      with tf.variable_scope('residual'):
+        h = _residual_block(h, 3, 'residual1')
+        h = _residual_block(h, 3, 'residual2')
+        h = _residual_block(h, 3, 'residual3')
+        h = _residual_block(h, 3, 'residual4')
+        h = _residual_block(h, 3, 'residual5')
+      with tf.variable_scope('expand'):
+        h = _upsampling(h, 3, 2, 64, 'conv1')
+        h = _upsampling(h, 3, 2, 32, 'conv2')
+        return _upsampling(h, 9, 1, 3, 'conv3', activation_fn=tf.nn.sigmoid)
 
-  pooling_fns = {'avg': slim.avg_pool2d, 'max': slim.max_pool2d}
-  pooling_fn = pooling_fns[pooling]
 
-  with tf.variable_scope('vgg_16', [inputs], reuse=reuse) as sc:
-    end_points = {}
+def _conv2d(input_, kernel_size, stride, num_outputs, scope,
+            activation_fn=tf.nn.relu):
+  """Same-padded convolution with mirror padding instead of zero-padding.
 
-    def add_and_check_is_final(layer_name, net):
-      end_points['%s/%s' % (sc.name, layer_name)] = net
-      return layer_name == final_endpoint
+  This function expects `kernel_size` to be odd.
 
-    with slim.arg_scope([slim.conv2d], trainable=False):
-      net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
-      if add_and_check_is_final('conv1', net): return end_points
-      net = pooling_fn(net, [2, 2], scope='pool1')
-      if add_and_check_is_final('pool1', net): return end_points
-      net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
-      if add_and_check_is_final('conv2', net): return end_points
-      net = pooling_fn(net, [2, 2], scope='pool2')
-      if add_and_check_is_final('pool2', net): return end_points
-      net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')
-      if add_and_check_is_final('conv3', net): return end_points
-      net = pooling_fn(net, [2, 2], scope='pool3')
-      if add_and_check_is_final('pool3', net): return end_points
-      net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
-      if add_and_check_is_final('conv4', net): return end_points
-      net = pooling_fn(net, [2, 2], scope='pool4')
-      if add_and_check_is_final('pool4', net): return end_points
-      net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
-      if add_and_check_is_final('conv5', net): return end_points
-      net = pooling_fn(net, [2, 2], scope='pool5')
-      if add_and_check_is_final('pool5', net): return end_points
-      # Use conv2d instead of fully_connected layers.
-      net = slim.conv2d(net, 4096, [7, 7], padding='VALID', scope='fc6')
-      if add_and_check_is_final('fc6', net): return end_points
-      net = slim.dropout(net, 0.5, is_training=False, scope='dropout6')
-      net = slim.conv2d(net, 4096, [1, 1], scope='fc7')
-      if add_and_check_is_final('fc7', net): return end_points
-      net = slim.dropout(net, 0.5, is_training=False, scope='dropout7')
-      net = slim.conv2d(net, 1000, [1, 1], activation_fn=None,
-                        scope='fc8')
-      end_points[sc.name + '/predictions'] = slim.softmax(net)
-      if add_and_check_is_final('fc8', net): return end_points
+  Args:
+    input_: 4-D Tensor input.
+    kernel_size: int (odd-valued) representing the kernel size.
+    stride: int representing the strides.
+    num_outputs: int. Number of output feature maps.
+    scope: str. Scope under which to operate.
+    activation_fn: activation function.
 
-    raise ValueError('final_endpoint (%s) not recognized', final_endpoint)
+  Returns:
+    4-D Tensor output.
+
+  Raises:
+    ValueError: if `kernel_size` is even.
+  """
+  if kernel_size % 2 == 0:
+    raise ValueError('kernel_size is expected to be odd.')
+  padding = kernel_size // 2
+  padded_input = tf.pad(
+      input_, [[0, 0], [padding, padding], [padding, padding], [0, 0]],
+      mode='REFLECT')
+  return slim.conv2d(
+      padded_input,
+      padding='VALID',
+      kernel_size=kernel_size,
+      stride=stride,
+      num_outputs=num_outputs,
+      activation_fn=activation_fn,
+      scope=scope)
+
+
+def _upsampling(input_, kernel_size, stride, num_outputs, scope,
+                activation_fn=tf.nn.relu):
+  """A smooth replacement of a same-padded transposed convolution.
+
+  This function first computes a nearest-neighbor upsampling of the input by a
+  factor of `stride`, then applies a mirror-padded, same-padded convolution.
+
+  It expects `kernel_size` to be odd.
+
+  Args:
+    input_: 4-D Tensor input.
+    kernel_size: int (odd-valued) representing the kernel size.
+    stride: int representing the strides.
+    num_outputs: int. Number of output feature maps.
+    scope: str. Scope under which to operate.
+    activation_fn: activation function.
+
+  Returns:
+    4-D Tensor output.
+
+  Raises:
+    ValueError: if `kernel_size` is even.
+  """
+  if kernel_size % 2 == 0:
+    raise ValueError('kernel_size is expected to be odd.')
+  with tf.variable_scope(scope):
+    _, height, width, _ = [s.value for s in input_.get_shape()]
+    upsampled_input = tf.image.resize_nearest_neighbor(
+        input_, [stride * height, stride * width])
+    return _conv2d(upsampled_input, kernel_size, 1, num_outputs, 'conv',
+                   activation_fn=activation_fn)
+
+
+def _residual_block(input_, kernel_size, scope, activation_fn=tf.nn.relu):
+  """A residual block made of two mirror-padded, same-padded convolutions.
+
+  This function expects `kernel_size` to be odd.
+
+  Args:
+    input_: 4-D Tensor, the input.
+    kernel_size: int (odd-valued) representing the kernel size.
+    scope: str, scope under which to operate.
+    activation_fn: activation function.
+
+  Returns:
+    4-D Tensor, the output.
+
+  Raises:
+    ValueError: if `kernel_size` is even.
+  """
+  if kernel_size % 2 == 0:
+    raise ValueError('kernel_size is expected to be odd.')
+  with tf.variable_scope(scope):
+    num_outputs = input_.get_shape()[-1].value
+    h_1 = _conv2d(input_, kernel_size, 1, num_outputs, 'conv1', activation_fn)
+    h_2 = _conv2d(h_1, kernel_size, 1, num_outputs, 'conv2', None)
+    return input_ + h_2

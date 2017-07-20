@@ -17,16 +17,16 @@ y_=tf.placeholder('float',shape=[None,10]);
 W=tf.Variable(tf.zeros([784,10]));
 b=tf.Variable(tf.zeros([10]));
 y= tf.nn.softmax(tf.matmul(x,W) + b)
-#初始化变量
-sess.run(tf.global_variables_initializer())
 #用交叉熵为损失函数
 cross_entropy=-tf.reduce_sum(y_*tf.log(y))
 #使用最速下降法作寻优
 train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
+#初始化变量
+sess.run(tf.global_variables_initializer())
 #训练模型
 for i in range(1000):
-  batch = mnist.train.next_batch(50)
-  train_step.run(feed_dict={x: batch[0], y_: batch[1]})
+    batch = mnist.train.next_batch(50)
+    train_step.run(feed_dict={x: batch[0], y_: batch[1]})
 #模型评估
 correct_prediction = tf.equal(tf.argmax(y,1), tf.argmax(y_,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
